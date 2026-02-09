@@ -1,0 +1,38 @@
+name: Simple Windows Build
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build app
+      shell: pwsh
+      run: |
+        # 安装 Node.js 和 Yarn
+        winget install -e --id OpenJS.NodeJS.LTS
+        $env:Path = "C:\Program Files\nodejs;$env:Path"
+        npm install -g yarn
+        
+        # 安装 Rust
+        winget install -e --id Rustlang.Rustup
+        rustup default stable
+        rustup target add x86_64-pc-windows-msvc
+        
+        # 构建应用
+        yarn install
+        yarn run prebuild:dev
+        yarn run build
+        yarn run tauri build
+        
+        # 复制安装包到工作区根目录
+        Copy-Item "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*.exe" -Destination "." -Force
+    
+    - name: Upload installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows-Installer
+        path: "*.exe"
