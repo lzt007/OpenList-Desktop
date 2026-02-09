@@ -1,4 +1,4 @@
-name: Simple Windows Build
+name: Build Windows x64 (No Sign)
 
 on: workflow_dispatch
 
@@ -7,32 +7,63 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
-    - name: Build app
-      shell: pwsh
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'yarn'
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: x86_64-pc-windows-msvc
+    
+    - name: Install dependencies
       run: |
-        # 安装 Node.js 和 Yarn
-        winget install -e --id OpenJS.NodeJS.LTS
-        $env:Path = "C:\Program Files\nodejs;$env:Path"
-        npm install -g yarn
-        
-        # 安装 Rust
-        winget install -e --id Rustlang.Rustup
-        rustup default stable
-        rustup target add x86_64-pc-windows-msvc
-        
-        # 构建应用
         yarn install
-        yarn run prebuild:dev
-        yarn run build
-        yarn run tauri build
-        
-        # 复制安装包到工作区根目录
-        Copy-Item "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*.exe" -Destination "." -Force
+        # 安装 Tauri CLI
+        cargo install tauri-cli
     
-    - name: Upload installer
+    - name: Prebuild
+      run: yarn run prebuild:dev
+    
+    - name: Build frontend
+      run: yarn run build
+    
+    - name: Build Tauri app (跳过签名)
+      run: |
+        # 设置环境变量禁用签名
+        $env:TAURI_PRIVATE_KEY = ""
+        $env:TAURI_KEY_PASSWORD = ""
+        
+        # 使用 --verbose 查看详细日志
+        yarn run tauri build --verbose
+      shell: pwsh
+    
+    - name: List build artifacts
+      run: |
+        echo "Checking build output..."
+        dir src-tauri\target\x86_64-pc-windows-msvc\release\ /s
+        echo "---"
+        dir src-tauri\target\release\ /s
+      shell: pwsh
+    
+    - name: Upload standalone executable
       uses: actions/upload-artifact@v4
       with:
-        name: Windows-Installer
-        path: "*.exe"
+        name: OpenList-Desktop-Executable
+        path: src-tauri/target/release/openlist-desktop.exe
+    
+    - name: Try to find and upload bundle files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: OpenList-Desktop-Bundle
+        path: |
+          src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
+          src-tauri/target/release/bundle/**/*.exe
+          src-tauri/target/**/release/bundle/**/*.exe
