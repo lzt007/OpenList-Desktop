@@ -30,14 +30,6 @@ jobs:
     - name: Build frontend
       run: yarn run build
     
-    - name: Copy required files
-      run: |
-        # 复制前端构建文件到 tauri 目录
-        Copy-Item -Path "dist" -Destination "src-tauri/target/x86_64-pc-windows-msvc/release/dist" -Recurse -Force
-        
-        # 复制其他可能需要的文件
-        Copy-Item -Path "src-tauri/target/x86_64-pc-windows-msvc/release/openlist-desktop.exe" -Destination "OpenList-Desktop.exe"
-      shell: pwsh
     
     - name: Upload executable
       uses: actions/upload-artifact@v4
