@@ -1,4 +1,4 @@
-name: Build Windows x64 (No Sign)
+name: Build Windows Executable Only
 
 on: workflow_dispatch
 
@@ -7,63 +7,25 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Setup environment
+      uses: ./.github/actions/setup-env
       with:
-        node-version: '20'
-        cache: 'yarn'
+        node-version: 20
+        rust-target: x86_64-pc-windows-msvc
     
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-        targets: x86_64-pc-windows-msvc
-    
-    - name: Install dependencies
+    - name: Build project
       run: |
         yarn install
-        # 安装 Tauri CLI
-        cargo install tauri-cli
+        yarn run prebuild:dev
+        yarn run build
+        # 直接使用 cargo 构建，跳过 tauri 的打包签名
+        cd src-tauri
+        cargo build --release --target x86_64-pc-windows-msvc
     
-    - name: Prebuild
-      run: yarn run prebuild:dev
-    
-    - name: Build frontend
-      run: yarn run build
-    
-    - name: Build Tauri app (跳过签名)
-      run: |
-        # 设置环境变量禁用签名
-        $env:TAURI_PRIVATE_KEY = ""
-        $env:TAURI_KEY_PASSWORD = ""
-        
-        # 使用 --verbose 查看详细日志
-        yarn run tauri build --verbose
-      shell: pwsh
-    
-    - name: List build artifacts
-      run: |
-        echo "Checking build output..."
-        dir src-tauri\target\x86_64-pc-windows-msvc\release\ /s
-        echo "---"
-        dir src-tauri\target\release\ /s
-      shell: pwsh
-    
-    - name: Upload standalone executable
+    - name: Upload executable
       uses: actions/upload-artifact@v4
       with:
-        name: OpenList-Desktop-Executable
-        path: src-tauri/target/release/openlist-desktop.exe
-    
-    - name: Try to find and upload bundle files
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: OpenList-Desktop-Bundle
-        path: |
-          src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
-          src-tauri/target/release/bundle/**/*.exe
-          src-tauri/target/**/release/bundle/**/*.exe
+        name: OpenList-Desktop
+        path: src-tauri/target/x86_64-pc-windows-msvc/release/openlist-desktop.exe
