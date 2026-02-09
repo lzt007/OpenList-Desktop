@@ -1,4 +1,4 @@
-name: Build Windows Executable Only
+name: Simple Windows Build
 
 on: workflow_dispatch
 
@@ -7,25 +7,47 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
-    - name: Setup environment
-      uses: ./.github/actions/setup-env
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
       with:
-        node-version: 20
-        rust-target: x86_64-pc-windows-msvc
+        node-version: '20'
     
-    - name: Build project
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: x86_64-pc-windows-msvc
+    
+    - name: Install dependencies
+      run: yarn install
+    
+    - name: Prebuild
+      run: yarn run prebuild:dev
+    
+    - name: Build frontend
+      run: yarn run build
+    
+    - name: Build Rust backend only (跳过Tauri打包)
       run: |
-        yarn install
-        yarn run prebuild:dev
-        yarn run build
-        # 直接使用 cargo 构建，跳过 tauri 的打包签名
         cd src-tauri
         cargo build --release --target x86_64-pc-windows-msvc
+    
+    - name: Copy required files
+      run: |
+        # 复制前端构建文件到 tauri 目录
+        Copy-Item -Path "dist" -Destination "src-tauri/target/x86_64-pc-windows-msvc/release/dist" -Recurse -Force
+        
+        # 复制其他可能需要的文件
+        Copy-Item -Path "src-tauri/target/x86_64-pc-windows-msvc/release/openlist-desktop.exe" -Destination "OpenList-Desktop.exe"
+      shell: pwsh
     
     - name: Upload executable
       uses: actions/upload-artifact@v4
       with:
         name: OpenList-Desktop
-        path: src-tauri/target/x86_64-pc-windows-msvc/release/openlist-desktop.exe
+        path: |
+          OpenList-Desktop.exe
+          src-tauri/target/x86_64-pc-windows-msvc/release/openlist-desktop.exe
